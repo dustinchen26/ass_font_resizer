@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<title>ASS 中英文字幕大小調整器（UTF-8）</title>
+
+<style>
+  body {
+    font-family: system-ui, -apple-system, BlinkMacSystemFont;
+    background: #f5f5f5;
+    padding: 20px;
+  }
+  h1 {
+    font-size: 22px;
+    margin-bottom: 10px;
+  }
+  .box {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    max-width: 900px;
+    margin: auto;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  }
+  label {
+    display: block;
+    margin-top: 15px;
+    font-weight: bold;
+  }
+  input[type="range"] {
+    width: 100%;
+  }
+  textarea {
+    width: 100%;
+    height: 260px;
+    margin-top: 10px;
+    font-family: monospace;
+    font-size: 13px;
+  }
+  button {
+    margin-top: 15px;
+    padding: 10px 20px;
+    font-size: 16px;
+    cursor: pointer;
+  }
+  .hint {
+    color: #555;
+    font-size: 13px;
+  }
+</style>
+</head>
+
+<body>
+<div class="box">
+  <h1>ASS 中文字幕 / 英文字幕大小調整（UTF-8 輸出）</h1>
+  <div class="hint">
+    • 支援中英同一行（使用 <code>\N</code> 換行）<br>
+    • 下載輸出為 UTF-8（無 BOM，不亂碼）
+  </div>
+
+  <label>上傳 ASS 字幕檔</label>
+  <input type="file" id="fileInput" accept=".ass">
+
+  <label>
+    中文字幕大小：
+    <span id="cnSizeLabel">26</span>
+  </label>
+  <input type="range" id="cnSize" min="16" max="48" value="26">
+
+  <label>
+    英文字幕大小：
+    <span id="enSizeLabel">17</span>
+  </label>
+  <input type="range" id="enSize" min="10" max="36" value="17">
+
+  <label>處理後 ASS 內容（預覽）</label>
+  <textarea id="output" placeholder="上傳字幕後，這裡會顯示處理結果"></textarea>
+
+  <button onclick="download()">下載新 ASS（UTF-8）</button>
+</div>
+
+<script>
+let originalText = "";
+let fileName = "output_resized.ass";
+
+const cnSizeInput = document.getElementById("cnSize");
+const enSizeInput = document.getElementById("enSize");
+const cnLabel = document.getElementById("cnSizeLabel");
+const enLabel = document.getElementById("enSizeLabel");
+const output = document.getElementById("output");
+
+cnSizeInput.oninput = enSizeInput.oninput = () => {
+  cnLabel.textContent = cnSizeInput.value;
+  enLabel.textContent = enSizeInput.value;
+  process();
+};
+
+document.getElementById("fileInput").addEventListener("change", e => {
+  const file = e.target.files[0];
+  if (!file) return;
+
+  fileName = file.name.replace(/\.ass$/i, "_resized.ass");
+
+  const reader = new FileReader();
+  reader.onload = () => {
+    originalText = reader.result;
+    process();
+  };
+  reader.readAsText(file, "utf-8");
+});
+
+function process() {
+  if (!originalText) return;
+
+  const cnSize = cnSizeInput.value;
+  const enSize = enSizeInput.value;
+
+  const lines = originalText.split(/\r?\n/).map(line => {
+    if (!line.startsWith("Dialogue:")) return line;
+
+    const idx = line.indexOf(",,");
+    if (idx === -1) return line;
+
+    const header = line.slice(0, idx + 2);
+    const text = line.slice(idx + 2);
+
+    if (!text.includes("\\N")) return line;
+
+    const parts = text.split("\\N");
+    const cn = `{\\fs${cnSize}}` + parts[0];
+    const en = `{\\fs${enSize}}` + parts.slice(1).join("\\N");
+
+    return header + cn + "\\N" + en;
+  });
+
+  output.value = lines.join("\n");
+}
+
+function download() {
+  const encoder = new TextEncoder();
+  const utf8bytes = encoder.encode(output.value);
+  const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+
+  const blob = new Blob([bom, utf8bytes], {
+    type: "text/plain;charset=utf-8"
+  });
+
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = fileName;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+</script>
+
+</body>
+</html>
